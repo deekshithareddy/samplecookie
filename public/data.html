@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Socket.IO Chat Example</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/vue"></script>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+
+<body>
+
+  <div class="container" id="pages">
+    <div class="row">
+      <div class="col-md-8" style="height:100%">
+        {{welcomeMessage}}
+        <div class="row pages">
+          <div class="chat page" v-if="showPage">
+            <div class="chatArea">
+              <ul class="messages">
+                <li class="message" v-for="todo in messagesArray">
+                  <span v-if="todo.type === 'userMessage'">
+                    <span class="username" v-bind:style="{ color: todo.color}">{{todo.username}} </span>
+                    <span class="messageBody">{{todo.usermessage}} </span>
+                  </span>
+                  <span v-else>
+                    <span class="userLogBody text-center">{{todo.message}} </span>
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="row">
+            <div class="container">
+              <div class="form-group">
+                <input type="text" class="form-control" :placeholder="messagePlaceHolder" v-model="userMessage" v-on:keydown="getNickName">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4" style="height:100%">
+        <div class="row" style="border-bottom:3px solid black;padding:20px 0px">
+          <div class="col-md-12 ">
+            <ul>
+              <li v-for="user in userListDb" :id="user.userid" v-on:click="userChat(user)">
+                <!-- <div class="col-md-3">
+                  <i class="fa fa-circle" aria-hidden="true" v-bind:style="{color: activeColor}"></i>
+                </div> -->
+                <div class="col-md-9">{{user.username}}</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row">
+            <div class="col-md-12  chatArea" style="padding:10px 0px 10px 40px">
+              <ul class="rooms">
+                <li class="roomName" v-for="room in roomsArray" v-on:click="()=>{ rName(room) }">{{room.rname}} </li>
+              </ul>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-12">
+              <input class="inputRoom" :placeholder="roomPlaceHolder" @keydown="getRoom" v-model="room">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/main1.js"></script>
+</body>
+
+</html>

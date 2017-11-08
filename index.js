@@ -1,238 +1,740 @@
 // Setup basic express server
 var express = require('express');
-var ejs = require('ejs');
-var app = express();
-var path = require('path');
 var mysql = require('mysql');
-var bodyParser = require('body-parser');
-cookieParser = require('cookie-parser');
-
-var redis = require("redis");
-
-var client = redis.createClient();
-var client2 = redis.createClient();
-
+var app = express();
+app.io = io;
+var path = require('path');
+var cors = require("cors");
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-var socketredis = require('socket.io-redis');
-io.adapter(socketredis({ host: 'localhost', port: 6379 }));
+var redis = require("redis");
+var sub = redis.createClient();
+var pub = redis.createClient();
+var bodyParser = require('body-parser')
+var port = process.env.PORT || 3005;
+var ejs = require('ejs');
+const timber = require('timber');
+var cookie = require('cookie');
+var cookieParser = require('cookie-parser');
+var dateandtime = new Date();
+var clients = {};
 
-app.use(bodyParser.urlencoded({ extended: true }));
-// view engine setup
-app.set(express.static(path.join(__dirname, '')));
+server.listen(port, function () {
+    console.log('Server listening at port %d', port);
+});
+
+// parse application/json
+app.use(bodyParser.json())
+app.use(cookieParser())
+app.use(cors());
+// parse application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(express.static(path.join(__dirname, '')));
 app.set('view engine', 'html');
+
+// view engine setup
 app.engine('html', ejs.renderFile);
-var uname;
-var uid;
-var con = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "Apple#123",
-  database: "chat"
-});
-con.connect(function (err) {
-  if (err) throw err;
-  console.log("Connected!");
+//app.use(timber.middlewares.express())
+
+// Database connectivity
+
+var mysql_connection = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: 'Apple#123',
+    database: 'VoltusWave'
 });
 
-server.listen(3001, function () {
-  console.log('Server listening at port %d', 3001);
-});
+mysql_connection.connect(function (error) {
+    if (error) {
+        console.log("Database connection failed" + error);
+
+    } else {
+        console.log("Database connection successfull");
+    }
+})
+
+app.get('/login', function (request, response) {
+    // app.call('/demo');
+    response.render('login');
+})
 
 // Routing
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/register', function (req, res) {
-  res.sendFile(path.join(__dirname + '/logged/register.html'));
-});
+app.get('/reg', function (request, response) {
+    //response.sendFile(path.join(__dirname + '/public/login.html'));
+    response.render('register');
+})
+app.get('/demo', function (request, response) {
+    console.log(" In demo route");
+})
+app.get('/piechart', function (request, response) {
+    response.render('piechart');
+})
+app.get('/chart', function (request, response) {
+    response.render('chart');
+})
+app.post('/api/addUser', function (request, response) {
+    // console.log(request.body.username);
+    var username = request.body.username;
+    var password = request.body.password;
+    var displayname = request.body.displayname;
+    var imageurl = request.body.imageurl;
 
-app.get('/login', function (req, res) {
-  res.sendfile(path.join(__dirname + '/logged/login.html'))
+    mysql_connection.query(`call add_users_data(?,?,?,?)`, [username, password, displayname, imageurl], function (error, result) {
+        if (error) {
+            // console.log(error);
+            //  return;
+            response.status(400).send({ "failure": error });
+        }
+
+        if (result) {
+            console.log("User added successfully" + result);
+            //response.render('login');
+            response.status(200).send({ "success": "user added successfully" });
+        }
+    })
+
 })
 
-app.post('/register', function (req, res) {
-  console.log('You sent the name "' + req.body.username + '".');
-  var username = req.body.username;
-  var password = req.body.password;
-  var displayname = req.body.displayname;
-  var picurl = req.body.picurl;
-  var sql = con.query('call userproc2(?, ?, ?, ?)', [username, password, displayname, picurl], function (err, result) {
-    if (err) throw err;
-  });
-  res.redirect('/login');
-  console.log(username);
-  console.log(password);
-  console.log(displayname);
-  console.log(picurl)
-});
-
-app.post('/login', function (req, res) {
-  console.log("login");
-  var username = req.body.username;
-  var password = req.body.password;
-
-  var sql = con.query('call login(?, ?)', [username, password], function (err, result) {
-    if (err) { throw err } else {
-      console.log(JSON.stringify(result));
-      var data = result[0];
-      console.log(data[0].username);
-      console.log(data[0].userid);
-      uname = data[0].username;
-      uid = data[0].userid
-      res.cookie('usercookie', uname);
-
-      res.cookie('uidcookie', uid);
-      res.redirect('/');
-    }
-  })
-  console.log('createred success');
+app.post('/api/login', function (request, response) {
+    var p_username = request.body.username;
+    var p_password = request.body.password;
+    // console.log("in login function" + p_username + p_password);
+    mysql_connection.query('select * from users where username =? and password = ? ', [p_username, p_password], function (error, result) {
+        //  mysql_connection.query(`call login(?,?)`, [p_username, p_password], function (error, result) {
+        if (error) {
+            // console.log(error);
+            return
+        }
+        if (result == 0) {
+            return response.render('login', { "error": "Wrong username / password" });
+        } else {
+            //  var UserItem;
+            //UserItem.userId  =  result[0].userid;
+            // UserItem.userName = result[0].username;
+            //   loggedInUsers.push({"lUserId":  result[0].userid , "lUserName" :  result[0].username});
+            response.cookie('userid', result[0].userid);
+            response.cookie('username', result[0].username);
+            response.redirect('/');
+        }
+    })
 })
 
-client2.on("subscribe", function (channel, count) {
-  console.log("Subscribed to " + channel + ". Now subscribed to " + count + " channel(s).");
-});
+app.post('/api/login1', function (request, response) {
+    var p_username = request.body.username;
+    var p_password = request.body.password;
+    // console.log("in login function" + p_username + p_password);
+    mysql_connection.query('select * from users where username =? and password = ? ', [p_username, p_password], function (error, result) {
+        //  mysql_connection.query(`call login(?,?)`, [p_username, p_password], function (error, result) {
+        if (error) {
+            // console.log(error);
+            response.status(400).send({ "error": error });
+            return;
+        }
 
-client2.on('message', function (channel, reply) {
-  var data = JSON.parse(reply);
-  console.log(data.username)
-  console.log(data.room)
-  if (channel == data.room) {
-    io.in(channel).emit('new message', {
-      userid: data.userid,
-      username: data.username,
-      message: data.message
-    });
-  }
+        if (result == 0) {
+            response.status(200).send({ "wrong": "Wrong username / password" });
+            // return response.render('login', { "error": "Wrong username / password" });
+        } else {
+            response.cookie('userid', result[0].userid);
+            response.cookie('username', result[0].username);
+            response.status(200).send({ "success": "success","userid": result[0].userid,"username":result[0].username});
+        }
+    })
 });
 
 // Chatroom
-var numUsers = 0;
-var roomarr = ["room1"];
 
-client2.subscribe(roomarr[0]);
+var numUsers = 0;
+var users = [];
+//var rooms = ["default"];
+var rooms = [];
+
+function checkRoom(room) {
+    var index = rooms.indexOf(room);
+    // console.log(index);
+    if (index > -1)
+        return true;
+    else return false;
+}
+
+sub.on("message", function (channel, data) {
+    data = JSON.parse(data);
+    // console.log("Inside Redis_Sub: data from channel " + channel + ": " + (data.sendType));
+    if (parseInt("sendToSelf".localeCompare(data.sendType)) === 0) {
+        io.emit(data.sendTo, data.data);
+    } else if (parseInt("sendToAllConnectedClients".localeCompare(data.sendType)) === 0) {
+        io.sockets.emit(data.sendTo, data.data);
+    } else if (parseInt("sendToAllClientsInRoom".localeCompare(data.sendType)) === 0) {
+        // console.log("emiting to " + channel + "and to method " + data.sendTo);
+        io.sockets.in(channel).emit(data.sendTo, data.data);
+    }
+});
 
 io.on('connection', function (socket) {
-  var addedUser = false;
-  var cookief = socket.handshake.headers.cookie;
 
-  var cookies = cookie.parse(socket.handshake.headers.cookie);
-  console.log(cookies);
-  // socket.username = uname
-  // socket.id = uid
-  // socket.room = roomarr[0]
-  // socket.join(roomarr[0]);
-  // ++numUsers;
-  // addedUser = true;
+    var addedUser = false;
+    // var cookieObj = socket.handshake.headers['cookie'];
+    var cookieObj = socket.handshake.headers.cookie;
+    // console.log("in io connection" + cookieObj);
+    var cookies = cookie.parse(socket.handshake.headers.cookie);
+    addUser(socket);
 
-  // socket.emit('login', {
-  //   numUsers: numUsers
-  // });
+    function addUser(socket) {
 
-  // // echo globally (all clients) that a person has connected
-  // socket.emit('viewroom', roomarr);
-  // socket.broadcast.to(roomarr[0]).emit('user joined', {
-  //   userid: socket.id,
-  //   username: socket.username,
-  //   numUsers: numUsers,
-  // });
+        clients.demo = 1;
+        socket.userid = cookies.userid;
+        socket.username = cookies.username;
+        socket.id = socket.id;
+        socket.room = "default";
+        socket.roomid = 1;
+        // console.log(" Inside add user function " + socket.userid);
+        ++numUsers;
+        if (clients.hasOwnProperty(socket.username)) {
+            // console.log("in if clients");
+            var rel = clients[socket.username]
+            rel[0].id.push(socket.id);
+            console.log(rel[0].id)
+            // socket.username[id].push(socket.id);
+        } else {
+            // console.log(" in else clients");
 
-  // when the client emits 'new message', this listens and executes
-  socket.on('new message', function (data) {
+            clients[socket.username] = []
+            clients[socket.username].push({
+                id: [],
+                activeUser: socket.room,
+                isUser: false
+            });
+            var rel = clients[socket.username]
+            rel[0].id.push(socket.id);
+            console.log(rel[0].id)
+            // console.log(rel[id])
+        }
+        /* Object.keys(clients).forEach(function (key, index) {
+ 
+             console.log("key value" + key + clients[key]);
+             if (key == socket.username) {
+                  clients[socket.username].push(socket.id);
+                // key.push(socket.id);
+             } else {
+                 console.log("in else");
+                 clients[socket.username] = [];
+                 clients[socket.username].push(socket.id);
+             }
+         });  */
+        //key = the name of the object key //index = the ordinal position of the key within the object });
 
-    // we tell the client to execute 'new message'
-    var reply = JSON.stringify({
-      userid: socket.id,
-      username: socket.username,
-      message: data,
-      room: socket.room
-    })
-
-    client.publish(socket.room, reply);
-  });
-
-  socket.on('newroomname', function (data) {
-    console.log("in new room " + data);
-    roomarr.push(data);
-    client2.subscribe(data);
-    io.emit('viewroom', roomarr);
-  })
-
-  // when the client emits 'add user', this listens and executes
-  // socket.on('add user', function (username) {
-
-  //   // if (addedUser) return;
-
-  //   // we store the username in the socket session for this client
-  //   socket.room = roomarr[0]
-  //   socket.join(roomarr[0]);
-  //   // client2.subscribe(roomarr[0]);
-  //   socket.username = req.cookies['usercookie'];
-  //   ++numUsers;
-  //   addedUser = true;
-
-  //   socket.emit('login', {
-  //     numUsers: numUsers
-  //   });
-
-  //   // echo globally (all clients) that a person has connected
-  //   socket.emit('viewroom', roomarr);
-  //   socket.broadcast.to(roomarr[0]).emit('user joined', {
-  //     username: socket.username,
-  //     numUsers: numUsers,
-  //   });
-  // });
-
-  // when the client emits 'typing', we broadcast it to others
-  socket.on('typing', function () {
-    socket.broadcast.to(socket.room).emit('typing', {
-      username: socket.username
-    });
-  });
-
-  // when the client emits 'stop typing', we broadcast it to others
-  socket.on('stop typing', function () {
-    socket.broadcast.to(socket.room).emit('stop typing', {
-      username: socket.username,
-      userid: socket.id
-    });
-  });
-
-  // when the user disconnects.. perform this
-  socket.on('disconnect', function () {
-    // socket.leave(socket.room);
-    if (addedUser) {
-      --numUsers;
-      // echo globally that this client has left
-      socket.broadcast.to(socket.room).emit('user left', {
-        userid: socket.id,
-        username: socket.username,
-        numUsers: numUsers
-      });
+        //clients[socket.username] = [];
+        //clients[socket.username].push(socket.id);
+        socket.join(socket.room);
+        users.push(socket.username);
+        addedUser = true;
+        sub.subscribe("default");
+        socket.emit('login', {
+            numUsers: numUsers,
+            room: socket.room
+        });
+        var reply = JSON.stringify({
+            method: 'message',
+            sendType: 'sendToAllClientsInRoom',
+            data: {
+                username: socket.username,
+                room: socket.room
+            },
+            sendTo: 'user joined'
+        });
+        pub.publish(socket.room, reply);
+        // To check if socket ids are being pushed into the array.
+        /* for (var property in clients) {
+             // console.log("in for" + property[property]);
+             if (property == socket.username) {
+                 console.log("property name" + property + "value" + clients[socket.username]);
+                 //    for(var y=0;y<property.length; y++){
+                 //        console.log("for" +  property[y]);
+                 //    }
+             }
+         }  */
     }
-  });
+    // io.emit('room added', {
 
-  socket.on('switchRoom', function (newroom) {
-    socket.leave(socket.room);
-    numUsers--;
+    //     rooms: rooms
+    // });
 
-    socket.broadcast.to(socket.room).emit('user left', {
-      userid: socket.id,
-      username: socket.username,
-      numUsers: numUsers
+    // when the client emits 'new message', this listens and executes
+    socket.on('getallrooms', function (params, ackCallback) {
+        console.log('teju get all rooms event')
+        var roomsList = [];
+        // console.log("In get rooms");
+        mysql_connection.query(`call roomsList`, function (error, result) {
+            if (error) {
+                return;
+            }
+
+            if (result) {
+                // console.log(result[0]);
+                var dataPacket = result[0];
+                for (var g = 0; g < dataPacket.length; g++) {
+                    var room_id = JSON.stringify(dataPacket[g].roomid);
+                    var room_name = JSON.stringify(dataPacket[g].roomname);
+                    // console.log("values" + JSON.stringify(dataPacket[g].roomid) + JSON.stringify(dataPacket[g].roomname));
+                    roomsList.push({ "roomid": room_id, "roomname": room_name });
+
+                }
+                ackCallback(null, roomsList);
+            }
+        });
     });
 
-    socket.join(newroom);
-    // client2.subscribe(newroom);
-    numUsers++
-    socket.room = newroom;
+    socket.on('new message', function (msg) {
+        // we tell the client to execute 'new message'
+        //   var dateandtime = new Date();
+        // console.log("in new message event" + msg);
+        // console.log("in new message event" + socket.room);
+        // console.log("in new message event" + socket.roomid);
+        mysql_connection.query(`call addmessage(?,?,?,?)`, [msg, socket.userid, socket.roomid, dateandtime], function (error, result) {
+            if (error) {
+                // console.log(error);
+                return
+            }
 
-    socket.broadcast.to(socket.room).emit('user joined', {
-      userid: socket.id,
-      username: socket.username,
-      numUsers: numUsers
+            if (result) {
+                // console.log(result)
+            }
+        })
+
+        var reply = JSON.stringify({
+            method: 'message',
+            sendType: 'sendToAllClientsInRoom',
+            data: {
+                username: socket.username,
+                room: socket.room,
+                message: msg
+            },
+            sendTo: 'new message'
+        });
+        pub.publish(socket.room, reply);
+        /*
+        socket.broadcast.to(socket.room).emit('new message', {
+          username: socket.username,
+          message: msg
+        });*/
+    });
+    var eventusername;
+    var eventuserid;
+    socket.on('independant message', function (data) {
+        var temp = data.receivername;//roopesh
+        var temp_S = data.sendername;
+        var temp_U = data.userMessage;
+        // var clickedname = data.clickedusername;
+        // console.log("temp value" + temp);
+        var flag;
+        if (!clients[temp]) {
+            flag = 0;
+            mysql_connection.query(`call usertousermessages(?,?,?,?,?)`, [data.senderid, data.receiverid, data.userMessage, dateandtime, flag],
+                function (err, result) {
+                    if (err) {
+                        return err;
+                    }
+                    if (result) {
+                        var data = {
+                            flag:0,
+                            username: temp_S,
+                            message: temp_U,
+                        };
+                        console.log(result[0])
+                        socket.emit('new message', data)
+                    }
+                })
+        }
+        else if (clients[temp]) {
+            if (clients[temp][0].activeUser != temp_S) {
+                flag = 1
+                mysql_connection.query(`call usertousermessages(?,?,?,?,?)`, [data.senderid, data.receiverid, data.userMessage, dateandtime, flag],
+                    function (err, result) {
+                        if (err) {
+                            return;
+                        }
+                        var data = {
+                            flag:1,
+                            username: temp_S,
+                            message: temp_U,
+                        };
+                        console.log("database value = " + JSON.stringify(result[0]))
+                        socket.emit('new message', data)
+                        var senderAndReceiverSocketIds = [];
+                        // console.log("in temp" + clients[temp]);
+                        // console.log("in temp" + clients[temp_S]);
+                        var temp_array_socketids_receiver = clients[temp][0].id;
+                        var temp_array_socketids_sender = clients[temp_S][0].id;
+                        for (var i = 0; i < temp_array_socketids_receiver.length; i++) {
+                            senderAndReceiverSocketIds.push(temp_array_socketids_receiver[i]);
+
+                        }
+                        for (var j = 0; j < temp_array_socketids_sender.length; j++) {
+                            senderAndReceiverSocketIds.push(temp_array_socketids_sender[j]);
+
+                        }
+
+                        for (var h = 0; h < senderAndReceiverSocketIds.length; h++) {
+                            //  socket.broadcast.to(senderAndReceiverSocketIds[h]).emit('new message', data);
+                            io.in(senderAndReceiverSocketIds[h]).emit("notification", {
+                                sendername:temp_S,
+                                not: result[0]
+                            });
+                        }
+                    });
+            }
+            else {
+                if (clients[temp][0].activeUser == temp_S) {
+                    flag = 2
+                    mysql_connection.query(`call updateusertousermessages(?,?,?)`, [data.senderid, data.receiverid, flag],
+                        function (err, result) {
+                            if (err) {
+                                return;
+                            }
+                            if (result) {
+                                var data = {
+                                    flag:2,
+                                    username: temp_S,
+                                    message: temp_U,
+                                };
+                                var senderAndReceiverSocketIds = [];
+                                // console.log("in temp" + clients[temp]);
+                                // console.log("in temp" + clients[temp_S]);
+                                var temp_array_socketids_receiver = clients[temp][0].id;
+                                var temp_array_socketids_sender = clients[temp_S][0].id;
+                                for (var i = 0; i < temp_array_socketids_receiver.length; i++) {
+                                    senderAndReceiverSocketIds.push(temp_array_socketids_receiver[i]);
+
+                                }
+                                for (var j = 0; j < temp_array_socketids_sender.length; j++) {
+                                    senderAndReceiverSocketIds.push(temp_array_socketids_sender[j]);
+
+                                }
+
+                                for (var h = 0; h < senderAndReceiverSocketIds.length; h++) {
+                                    //  socket.broadcast.to(senderAndReceiverSocketIds[h]).emit('new message', data);
+                                    io.in(senderAndReceiverSocketIds[h]).emit("new message", data);
+
+                                }
+                            }
+                        })
+                }
+
+            }
+        }
+
+        //  console.log("in independant messge" + temp);
+        //  console.log("in independant messge" +temp.senderid +  temp.sendername + temp.receiverid + temp.receivername);
+
+        // mysql_connection.query(`call usertousermessages(?,?,?,?)`, [data.senderid, data.receiverid, data.userMessage, dateandtime],
+        //     function (error, result) {
+        //         if (error) {
+        //             // console.log("In independant message event" + error);
+        //             return;
+        //         }
+
+        //         if (result) {
+        //             var data = {
+        //                 username: temp_S,
+        //                 message: temp_U,
+        //             };
+
+        //             // console.log("In independant message event" + result);
+
+        //             if (clients.hasOwnProperty(temp) && clients.hasOwnProperty(temp_S)) {
+        //                 var senderAndReceiverSocketIds = [];
+        //                 // console.log("in temp" + clients[temp]);
+        //                 // console.log("in temp" + clients[temp_S]);
+        //                 var temp_array_socketids_receiver = clients[temp];
+        //                 var temp_array_socketids_sender = clients[temp_S];
+        //                 for (var i = 0; i < temp_array_socketids_receiver.length; i++) {
+        //                     senderAndReceiverSocketIds.push(temp_array_socketids_receiver[i]);
+
+        //                 }
+        //                 for (var j = 0; j < temp_array_socketids_sender.length; j++) {
+        //                     senderAndReceiverSocketIds.push(temp_array_socketids_sender[j]);
+
+        //                 }
+
+        //                 for (var h = 0; h < senderAndReceiverSocketIds.length; h++) {
+        //                     //  socket.broadcast.to(senderAndReceiverSocketIds[h]).emit('new message', data);
+        //                     io.in(senderAndReceiverSocketIds[h]).emit("new message", data);
+
+        //                 }
+        //             }
+        //             /* if (clients.hasOwnProperty(temp)) {
+        //                  console.log("in temp" + clients[temp]);
+        //                  var temp_array_socketids = clients[temp];
+        //                  for (var i = 0; i < temp_array_socketids.length; i++) {
+        //                      console.log("temp_array_socketids" + temp_array_socketids[i]);
+        //                      //  socket.to(temp_array_socketids[i]).emit("new message", data);
+        //                      //  socket.broadcast.to(temp_array_socketids[i]).emit('message1', 'for your eyes only');
+        //                      // socket.emit('new message', data);
+        //                      io.sockets.in(temp_array_socketids[i]).emit("new message", data);
+        //                  }
+
+        //              } */
+        //             else {
+        //                 console.log("user message nptification" + result[0])
+        //                 // socket.broadcast.emit('notification', result[0])
+        //             }
+        //         }
+        //     });
+
+        // var temp1 = Object.keys(clients);
+        // console.log("value of temp 1 " + temp1);
     });
 
-    console.log("user joined" + socket.room);
-    socket.emit('viewroom', roomarr);
-  })
+    socket.on('add room', function (room) {
+
+        // io.on('add room', function (room) {
+        // if (checkRoom(room)) return;
+
+        // console.log("in server side  " + room);
+        rooms.push(room);
+        //console.log("room added would be broadcasted"+rooms[0]);
+        mysql_connection.query(`call add_rooms(?)`, [room], function (error, result) {
+            if (error) {
+                // console.log(error);
+                return
+            }
+
+            if (result) {
+                // console.log("in rooms" + JSON.stringify(result));
+            }
+        })
+        var reply = JSON.stringify({
+            method: 'message',
+            sendType: 'sendToAllConnectedClients',
+            data: {
+                username: socket.username,
+                rooms: rooms
+            },
+            sendTo: 'room added'
+        });
+        pub.publish(socket.room, reply);
+
+    });
+
+    // when the client emits 'add user', this listens and executes
+    /*  socket.on('add user', function (username) {
+          //console.log("in socket fun");
+          //if (addedUser) return;
+  
+          // we store the username in the socket session for this client
+          socket.username = username;
+          // console.log("server side" +  socket.username);
+          ++numUsers;
+          socket.room = "default";
+          socket.join(socket.room);
+          users.push(username);
+          addedUser = true;
+          //var room = io.adapter.rooms[socket.room];
+          sub.subscribe("default");
+          socket.emit('login', {
+              numUsers: numUsers,
+              room: socket.room
+          });
+          console.log(users);
+          // echo globally (all clients) that a person has connected
+          var reply = JSON.stringify({
+              method: 'message',
+              sendType: 'sendToAllClientsInRoom',
+              data: {
+                  username: socket.username,
+                  room: socket.room
+              },
+              sendTo: 'user joined'
+          });
+          pub.publish(socket.room, reply);
+          /*  socket.broadcast.to(socket.room).emit('user joined', {
+              username: socket.username,
+              numUsers: numUsers,
+              room:socket.room
+            });*/
+    /*   });  */
+
+    // when the client emits 'typing', we broadcast it to others
+    socket.on('typing', function () {
+        socket.broadcast.to(socket.room).emit('typing', {
+            username: socket.username
+        });
+    });
+
+    // when the client emits 'stop typing', we broadcast it to others
+    socket.on('stop typing', function () {
+        socket.broadcast.to(socket.room).emit('stop typing', {
+            username: socket.username
+        });
+    });
+
+    socket.on('disconnect', function () {
+        if (addedUser) {
+            --numUsers;
+            // socket.broadcast.to(socket.room).emit('user left', {
+            //     username: socket.username,
+            //     numUsers: numUsers
+            //   }); 
+            console.log(socket.id);
+            console.log(clients[socket.username][0].id.indexOf(socket.id));
+            var index=clients[socket.username][0].id.indexOf(socket.id)
+            if (index > -1) {
+                clients[socket.username][0].id.splice(index, 1);
+            }
+            console.log(clients[socket.username][0].id);
+            var reply = JSON.stringify({
+                method: 'message',
+                sendType: 'sendToAllClientsInRoom',
+                data: {
+                    username: socket.username,
+                    room: socket.room
+                },
+                sendTo: 'user left'
+            });
+            pub.publish(socket.room, reply);
+        }
+    }),
+
+        socket.on('switchRoom', function (data, callback) {
+            let previousMessages = null;
+            // console.log(JSON.stringify(data) + "switch room");
+            // console.log(data.newroom.rid + "switch room");
+            // console.log(data.newroom.rname + "switch room");
+            // console.log("room left" + socket.room)
+            socket.leave(socket.room);
+            var newroom = data.newroom.rname.replace(/"/g, "");
+            socket.join(newroom);
+            //socket.emit('updatechat', 'SERVER', 'you have connected to '+ newroom);
+            // sent message to OLD room
+            //socket.broadcast.to(socket.room).emit('updatechat', 'SERVER', socket.username+' has left this room');
+            socket.emit('clear');
+            /* socket.broadcast.to(socket.room).emit('user left', {
+                 username: socket.username,
+                 numUsers: numUsers
+             });  */
+
+            //db call to get previous messages 
+            //  mysql_connection.query('select chatmessages.usermessage, users.username from chatmessages INNER JOIN users ON chatmessages.userid = users.userid WHERE chatmessages.roomid = ?  ', [data.newroom.rid], function (err, result) {
+
+            var reply = JSON.stringify({
+                method: 'message',
+                sendType: 'sendToAllClientsInRoom',
+                data: {
+                    username: socket.username,
+                    numUsers: numUsers,
+                    room: socket.room
+                },
+                sendTo: 'user left'
+            });
+            pub.publish(socket.room, reply);
+
+            socket.room = newroom;
+            socket.roomid = data.newroom.rid;
+            sub.subscribe(newroom);
+
+            /*
+          socket.broadcast.to(socket.room).emit('user joined', {
+          username: socket.username,
+          numUsers: numUsers,
+          room:socket.room
+        });
+        */
+            //socket.emit('updaterooms', rooms, newroom);
+            reply = JSON.stringify({
+                method: 'message',
+                sendType: 'sendToAllClientsInRoom',
+                data: {
+                    username: socket.username,
+                    room: socket.room
+                },
+                sendTo: 'user joined'
+            });
+            pub.publish(socket.room, reply);
+
+            mysql_connection.query(`call roomMessages(?)`, [data.newroom.rid], function (err, result) {
+                if (err) {
+                    // console.log(err);
+                    return;
+                };
+
+                if (result) {
+                    // console.log("In switch room messages" + JSON.stringify(result));
+                    previousMessages = result;
+                    callback(previousMessages);
+                }
+            });
+        });
+
+    socket.on('usertouser', function (data, callback) {
+        let independantpreviousMessages = null;
+        // console.log("data" + JSON.stringify(data) + socket.room);
+        socket.leave(socket.room);
+        // socket.room=data.receivername;
+        // socket.join(socket.room);
+        var rel = clients[socket.username]
+        rel[0].activeUser = data.receivername;
+        rel[0].isUser = true;
+        eventusername = data.receivername;
+        eventuserid = data.receiverid;
+        console.log("clickedevent :-- " + eventuserid + eventusername)
+        mysql_connection.query(`call getOneToOneMessage(?,?)`, [data.senderid, data.receiverid], function (err, result) {
+            if (err) {
+                // console.log("in usertouser event" + err);
+                return;
+            }
+
+            if (result) {
+                // console.log("in usertouser event" + JSON.stringify(result));
+                independantpreviousMessages = result;
+                callback(independantpreviousMessages);
+
+            }
+        })
+        //  var h = data.sendername + "" + data.receivername;
+        //  console.log("value of h" + h);
+        /* socket.emit('user joined', {
+            username: h,
+              utou: data
+ 
+          });    */
+    });
+
+    socket.on('getusers', function (data, callback) {
+        var usersList = null;
+        // console.log(" In getusers");
+        mysql_connection.query(`call getAllUsers`, (err, result) => {
+            if (err) {
+                // console.log(err);
+                return;
+            }
+            if (result) {
+                usersList = JSON.stringify(result);
+                callback(usersList);
+            }
+        });
+    });
+
+    sub.on("subscribe", function (channel, count) {
+        // console.log("Subscribed to " + channel + ". Now subscribed to " + count + " channel(s).");
+
+    });
+    socket.on('user_message_chart', function(){
+        mysql_connection.query(`call getAllUsersmessages`, (err, result) => {
+            if (err) {
+                // console.log(err);
+                return;
+            }
+            if (result) {
+               console.log(result[0]);
+                io.emit('user_message_chart',result[0]);
+            }
+        });
+    });
 });
+
+
+
+

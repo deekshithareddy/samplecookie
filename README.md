@@ -23,3 +23,19 @@ on website load.
 - Users can type chat messages to the chat room.
 - A notification is sent to all users when a user joins or leaves
 the chatroom.
+
+
+
+DROP procedure IF exists VoltusWave.add_users_data;
+DELIMITER $$
+CREATE PROCEDURE VoltusWave.add_users_data 
+( userid       INT(11), username     VARCHAR(15), password     VARCHAR(15), displayname  VARCHAR(15), imageurl     VARCHAR(15) )
+BEGIN 
+
+    INSERT INTO VoltusWave.users
+         (username, password, displayname, imageurl)
+    VALUES 
+         (username,password,displayname,url);
+end$$
+
+DELIMITER ;

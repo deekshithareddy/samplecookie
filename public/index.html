@@ -2,57 +2,70 @@
 <html lang="en">
 
 <head>
-	<meta charset="UTF-8">
-	<title>Socket.IO Chat Example</title>
-	<link rel="stylesheet" href="/style.css">
-	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-	<!-- <script src="/vue.js"></script> -->
-	<script src="https://unpkg.com/vue"></script>
-	
+  <meta charset="UTF-8">
+  <title>Socket.IO Chat Example</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/vue"></script>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
 </head>
 
 <body>
-	<div id="chatapp">
-		<ul class="pages">
-			<li class="chat page">
-				<div class="col-md-8" style="height:100%">
 
-					<div class="chatArea">
-						<ul class="messages">
-							<div class="row text-center">{{message}}</div>
-							<li v-for="listitem in messagearray">
-								<div class="row" v-if="listitem.type === 'usermessage'">
-									<span v-bind:style="{ color: listitem.color }">{{listitem.senduserid}}-{{listitem.sendusername}}::</span>
-									<span>{{listitem.sendmessage}}</span>
-								</div>
-								<div class="row text-center" v-else>
-									<span>{{listitem.logmessage}}</span>
-								</div>
-							</li>
-						</ul>
-					</div>
-					<input class="inputMessage" placeholder="Type here..." v-model="usermessage" @keyup.enter="sendMessage" />
+  <ul id="pages" class="pages">
 
-				</div>
-				<div class="col-md-4" style="height:100%">
-					<div class="chatArea">
-						<ul class="roomlist">
-							<li v-for="room in rooms" v-on:click="switchroom(room)">{{room}}</li>
-						</ul>
-					</div>
-					<input type="text" class="addroom" placeholder="Enter roomname ..." v-model="roomname" @keyup.enter="addroom">
-				</div>
-			</li>
-			<!-- <li class="login page" v-if="show">
-				<div class="form">
-					<h3 class="title">What's your nickname?</h3>
-					<input class="usernameInput" type="text" maxlength="14" name="username" v-model="username" @keyup.enter="setUsername" />
-				</div>
-			</li> -->
-		</ul>
-	</div>
-	<script src="/socket.io/socket.io.js"></script>
-	<script src="/main.js"></script>
+    {{welcomeMessage}}
+    <a href="/piechart">pie_chat_svg </a>
+    <a href="/chart">pie_chat </a>
+    <li class="chat page" v-if="showPage">
+      <div class="col-md-8" style="height:100%">
+        <div class="chatArea">
+          <ul class="messages">
+            <li class="message" v-for="todo in messagesArray">
+              <span v-if="todo.type === 'userMessage'">
+                <span class="username" v-bind:style="{ color: todo.color}">{{todo.username}} </span>
+                <span class="messageBody">{{todo.usermessage}} </span>
+                <span v-if="showtick">
+                  <i class="fa fa-check" aria-hidden="true"></i>
+                </span>
+                <span class="fa-stack fa-lg" v-if="showtwotick" v-bind:style="{color:spancolor}">
+                  <i class="fa fa-check fa-stack-1x" style="margin-left:4px"></i>
+                  <i class="fa fa-check  fa-stack-1x" style="margin-left:-4px"></i>
+                </span>
+              </span>
+              <span v-else>
+                <span class="userLogBody text-center">{{todo.message}} </span>
+              </span>
+            </li>
+          </ul>
+        </div>
+        <input class="inputMessage" :placeholder="messagePlaceHolder" v-model="userMessage" v-on:keydown="getNickName">
+      </div>
+      <div class="col-md-2" style="height:100%">
+        <div id="roompage" class="room page chatArea">
+          <div class="roomArea" class="col-md-2">
+            <ul class="rooms">
+              <li class="roomName" v-for="room in roomsArray" v-on:click="()=>{ rName(room) }">{{room.rname}} </li>
+            </ul>
+          </div>
+          <input class="inputRoom" :placeholder="roomPlaceHolder" @keydown="getRoom" v-model="room">
+        </div>
+      </div>
+      <div class="col-md-2" style="height:100%">
+        <ul>
+          <li v-for="user in userListDb" :id="user.userid" v-on:click="userChat(user)">
+            {{user.username}}
+            <span>{{user.count}}</span>
+          </li>
+        </ul>
+      </div>
+    </li>
+
+  </ul>
+
+  <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/main1.js"></script>
 </body>
 
 </html>

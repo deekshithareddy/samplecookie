@@ -1,0 +1,52 @@
+<html>
+
+<head>
+    <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+    <!-- <button id="socketdata">show chart</button> -->
+    <div id="chartContainer" style="height: 370px; width: 100%;"></div>
+    <button id="showbtn">show</button>
+
+    <script>
+        var dt = []
+        var socket = io();
+        // document.getElementById('socketdata').onclick = function () {
+            socket.emit('user_message_chart');
+            // document.getElementById('socketdata').style.display='none';
+            // document.getElementById('chartContainer').style.display='inline';
+            // document.getElementById('showbtn').style.display='inline';
+
+        // }
+        socket.on('user_message_chart', function (data) {
+            for (var i = 0; i < data.length; i++) {
+                dt.push({
+                    y: data[i].usermessage,
+                    lable: data[i].userid
+                })
+            }
+        })
+        document.getElementById('showbtn').onclick = function () {
+
+            var chart = new CanvasJS.Chart("chartContainer", {
+                animationEnabled: true,
+                title: {
+                    text: "User chat message"
+                },
+                data: [{
+                    type: "pie",
+                    startAngle: 240,
+                    yValueFormatString: "##0.00\"%\"",
+                    indexLabel: "{label} {y}",
+                    dataPoints: dt
+                }]
+            });
+            chart.render();
+
+        }
+    </script>
+</body>
+
+</html>
