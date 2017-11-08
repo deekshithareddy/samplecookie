@@ -20,7 +20,7 @@ var vm = new Vue({
     roomsArray: [],
     showtick:false,
     showtwotick:true,
-    spancolor:"lightgrey",
+    spancolor:"green",
     COLORS: [
       '#e21400', '#91580f', '#f8a700', '#f78b00',
       '#58dc00', '#287b00', '#a8f07a', '#4ae8c4',
@@ -298,6 +298,7 @@ var vm = new Vue({
       // console.log(" in new message - client " + JSON.stringify(data));
       if(data.flag == 0){
         scope.showtick=true
+        scope.showtwotick=false;
         this.colorCode = scope.getUsernameColor(data.username);
         scope.messagesArray.push({ type: "userMessage", "username": data.username, "usermessage": data.message, "color": this.colorCode });
       }
@@ -316,7 +317,7 @@ var vm = new Vue({
         scope.messagesArray.push({ type: "userMessage", "username": data.username, "usermessage": data.message, "color": this.colorCode });
       }
       else{
-      scope.showtick=true
+      // scope.showtick=true
       scope.colorCode = scope.getUsernameColor(data.username);
       scope.messagesArray.push({ type: "userMessage", "username": data.username, "usermessage": data.message, "color": this.colorCode });
     }
